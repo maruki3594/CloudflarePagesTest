@@ -88,6 +88,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Helper function to show a message box
         // メッセージボックスを表示するヘルパー関数
         function showMessageBox(message) {
             const messageBox = document.getElementById('statusMessageBox');
@@ -96,6 +97,8 @@
             messageBox.style.display = 'block';
         }
 
+        // Get Firebase config and auth token from environment variables
+        // __app_id, __firebase_config, __initial_auth_token are provided by the Canvas environment
         // 環境変数からFirebase設定と認証トークンを取得
         // __app_id, __firebase_config, __initial_auth_token はCanvas環境から提供されます
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -105,66 +108,85 @@
         let app;
         let db;
         let auth;
-        let userId = 'anonymous'; // 匿名ユーザーのデフォルトID
+        let userId = 'anonymous'; // Default ID for anonymous user
+        // 匿名ユーザーのデフォルトID
 
+        // Initialize Firebase and authenticate
         // Firebaseの初期化と認証
         const initFirebase = async () => {
             try {
+                // Check if Firebase app is already initialized
                 // Firebaseアプリが既に初期化されているか確認
                 if (!app) {
                     app = initializeApp(firebaseConfig);
                     db = getFirestore(app);
                     auth = getAuth(app);
 
+                    // Listen for auth state changes
                     // 認証状態の変更をリッスン
                     onAuthStateChanged(auth, (user) => {
                         if (user) {
-                            userId = user.uid; // ユーザーIDを設定
-                            console.log('Firebase認証成功。ユーザーID:', userId);
+                            userId = user.uid; // Set user ID
+                            // ユーザーIDを設定
+                            console.log('Firebase authentication successful. User ID:', userId);
+                            // Firebase認証成功。ユーザーID:
                             showMessageBox(`認証成功: ユーザーID ${userId} でログインしました。`);
+                            // Load messages after authentication
                             // 認証後にメッセージをロード
                             loadMessages();
                         } else {
                             userId = 'anonymous';
-                            console.log('Firebase認証なし。匿名ログインを試行。');
+                            console.log('Firebase authentication not found. Attempting anonymous login.');
+                            // Firebase認証なし。匿名ログインを試行。
                             showMessageBox('認証していません。匿名でログインします。');
+                            // Attempt anonymous login
                             // 匿名ログインを試行
                             signInAnonymously(auth)
                                 .then(() => {
-                                    console.log('匿名ログイン成功');
+                                    console.log('Anonymous login successful');
+                                    // 匿名ログイン成功
                                     showMessageBox('匿名ログインに成功しました。');
                                 })
                                 .catch((error) => {
-                                    console.error('匿名ログイン失敗:', error);
+                                    console.error('Anonymous login failed:', error);
+                                    // 匿名ログイン失敗:
                                     showMessageBox('匿名ログインに失敗しました。詳細をコンソールで確認してください。');
                                 });
                         }
                     });
 
+                    // Use custom token if available
                     // カスタムトークンがある場合はそれを使用
                     if (initialAuthToken) {
                         await signInWithCustomToken(auth, initialAuthToken)
-                            .then(() => console.log('カスタムトークンで認証成功'))
+                            .then(() => console.log('Authentication with custom token successful'))
+                            // カスタムトークンで認証成功
                             .catch((error) => {
-                                console.error('カスタムトークン認証失敗:', error);
+                                console.error('Custom token authentication failed:', error);
+                                // カスタムトークン認証失敗:
                                 showMessageBox('カスタムトークン認証に失敗しました。詳細をコンソールで確認してください。');
                             });
                     } else {
+                        // If no custom token, try anonymous authentication (handled by onAuthStateChanged)
                         // カスタムトークンがない場合は匿名認証を試行（onAuthStateChangedで処理）
                         await signInAnonymously(auth)
-                            .then(() => console.log('匿名認証成功'))
+                            .then(() => console.log('Anonymous authentication successful'))
+                            // 匿名認証成功
                             .catch((error) => {
-                                console.error('初期匿名認証失敗:', error);
+                                console.error('Initial anonymous authentication failed:', error);
+                                // 初期匿名認証失敗:
                                 showMessageBox('初期匿名認証に失敗しました。詳細をコンソールで確認してください。');
                             });
                     }
                 }
             } catch (error) {
-                console.error("Firebaseの初期化または認証中にエラーが発生しました:", error);
+                console.error("Error initializing Firebase or during authentication:", error);
+                // Firebaseの初期化または認証中にエラーが発生しました:
                 showMessageBox('Firebaseの初期化に失敗しました。詳細をコンソールで確認してください。');
             }
         };
 
+        // Function to add a message to Firestore
         // Firestoreにメッセージを追加する関数
         const addMessage = async () => {
             const messageText = document.getElementById('messageText').value;
@@ -173,6 +195,7 @@
                 return;
             }
 
+            // Perform Firestore operations only after authentication
             // Firestoreへの操作は認証後に実行
             if (!auth.currentUser) {
                 showMessageBox("認証が完了していません。しばらくお待ちください...");
@@ -180,34 +203,43 @@
             }
 
             try {
+                // Construct the public data collection path
                 // publicデータコレクションパスの構築
                 const messagesCollectionPath = `artifacts/${appId}/public/data/messages`;
                 await addDoc(collection(db, messagesCollectionPath), {
                     text: messageText,
                     timestamp: new Date(),
-                    userId: userId // メッセージを送信したユーザーID
+                    userId: userId // User ID who sent the message
+                    // メッセージを送信したユーザーID
                 });
-                document.getElementById('messageText').value = ''; // 入力フィールドをクリア
-                console.log("メッセージがFirestoreに追加されました！");
+                document.getElementById('messageText').value = ''; // Clear input field
+                // 入力フィールドをクリア
+                console.log("Message added to Firestore!");
+                // メッセージがFirestoreに追加されました！
                 showMessageBox("メッセージが正常に追加されました。");
             } catch (e) {
-                console.error("ドキュメントの追加中にエラーが発生しました: ", e);
+                console.error("Error adding document: ", e);
+                // ドキュメントの追加中にエラーが発生しました:
                 showMessageBox("メッセージの追加中にエラーが発生しました。詳細をコンソールで確認してください。");
             }
         };
 
+        // Function to load messages from Firestore in real-time
         // Firestoreからメッセージをリアルタイムで読み込む関数
         const loadMessages = () => {
             const messagesList = document.getElementById('messagesList');
             const loadingText = document.getElementById('loadingText');
 
+            // Construct the public data collection path
             // publicデータコレクションパスの構築
             const messagesCollectionPath = `artifacts/${appId}/public/data/messages`;
             const q = query(collection(db, messagesCollectionPath), orderBy('timestamp', 'desc'));
 
             onSnapshot(q, (snapshot) => {
-                messagesList.innerHTML = ''; // リストをクリア
-                loadingText.style.display = 'none'; // ロード中のテキストを非表示に
+                messagesList.innerHTML = ''; // Clear list
+                // リストをクリア
+                loadingText.style.display = 'none'; // Hide loading text
+                // ロード中のテキストを非表示に
 
                 if (snapshot.empty) {
                     messagesList.innerHTML = '<p class="text-gray-500 text-center">まだメッセージはありません。</p>';
@@ -229,16 +261,21 @@
                     });
                 }
             }, (error) => {
-                console.error("メッセージの読み込み中にエラーが発生しました:", error);
+                console.error("Error loading messages:", error);
+                // メッセージの読み込み中にエラーが発生しました:
                 showMessageBox("メッセージの読み込み中にエラーが発生しました。詳細をコンソールで確認してください。");
                 loadingText.textContent = 'メッセージの読み込みに失敗しました。';
+                // メッセージの読み込みに失敗しました。
                 loadingText.style.display = 'block';
             });
         };
 
+        // Set up event listeners
         // イベントリスナーの設定
         document.addEventListener('DOMContentLoaded', async () => {
-            await initFirebase(); // Firebaseの初期化と認証を待つ
+            await initFirebase(); // Wait for Firebase initialization and authentication
+            // Firebaseの初期化と認証を待つ
+            // loadMessages is called inside initFirebase's onAuthStateChanged
             // initFirebase内部のonAuthStateChangedでloadMessagesが呼ばれます
         });
 
