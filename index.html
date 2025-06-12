@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Firestore Webアプリ</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Interフォントを適用 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .container {
+            max-width: 800px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+        }
+        .input-field {
+            border: 1px solid #d1d5db; /* Tailwind gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            padding: 0.75rem;
+            width: 100%;
+        }
+        .btn-primary {
+            background-color: #4f46e5; /* Tailwind indigo-600 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            font-weight: 600; /* font-semibold */
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca; /* Tailwind indigo-700 */
+        }
+        .message-box {
+            background-color: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none; /* デフォルトで非表示 */
+        }
+    </style>
+</head>
+<body class="p-6 flex items-center justify-center min-h-screen">
+    <div class="container mx-auto p-4 md:p-8 card">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Firebase Firestore メッセージアプリ</h1>
+
+        <!-- メッセージ入力セクション -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">新しいメッセージを追加</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="messageText" class="block text-gray-700 text-sm font-medium mb-2">メッセージ:</label>
+                    <input type="text" id="messageText" class="input-field focus:ring-indigo-500 focus:border-indigo-500" placeholder="ここにメッセージを入力...">
+                </div>
+                <button id="addMessageBtn" class="btn-primary w-full md:w-auto">メッセージを追加</button>
+            </div>
+        </div>
+
+        <!-- メッセージ表示セクション -->
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">メッセージ一覧</h2>
+            <div id="messagesList" class="space-y-4">
+                <!-- メッセージはここに動的に追加されます -->
+                <p class="text-gray-500 text-center" id="loadingText">メッセージを読み込み中...</p>
+            </div>
+        </div>
+
+        <!-- メッセージボックス -->
+        <div id="statusMessageBox" class="message-box">
+            <p id="messageContent" class="text-gray-800"></p>
+            <button onclick="document.getElementById('statusMessageBox').style.display='none'" class="mt-2 text-indigo-600 hover:text-indigo-800 font-medium float-right">閉じる</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDKの読み込み -->
+    <!-- v11.6.1は特定のバージョンです。最新版は公式ドキュメントで確認してください。 -->
+    <script type="module">
+        // Firebaseの必須モジュールをインポート
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // メッセージボックスを表示するヘルパー関数
+        function showMessageBox(message) {
+            const messageBox = document.getElementById('statusMessageBox');
+            const messageContent = document.getElementById('messageContent');
+            messageContent.textContent = message;
+            messageBox.style.display = 'block';
+        }
+
+        // 環境変数からFirebase設定と認証トークンを取得
+        // __app_id, __firebase_config, __initial_auth_token はCanvas環境から提供されます
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous'; // 匿名ユーザーのデフォルトID
+
+        // Firebaseの初期化と認証
+        const initFirebase = async () => {
+            try {
+                // Firebaseアプリが既に初期化されているか確認
+                if (!app) {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    // 認証状態の変更をリッスン
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId = user.uid; // ユーザーIDを設定
+                            console.log('Firebase認証成功。ユーザーID:', userId);
+                            showMessageBox(`認証成功: ユーザーID ${userId} でログインしました。`);
+                            // 認証後にメッセージをロード
+                            loadMessages();
+                        } else {
+                            userId = 'anonymous';
+                            console.log('Firebase認証なし。匿名ログインを試行。');
+                            showMessageBox('認証していません。匿名でログインします。');
+                            // 匿名ログインを試行
+                            signInAnonymously(auth)
+                                .then(() => {
+                                    console.log('匿名ログイン成功');
+                                    showMessageBox('匿名ログインに成功しました。');
+                                })
+                                .catch((error) => {
+                                    console.error('匿名ログイン失敗:', error);
+                                    showMessageBox('匿名ログインに失敗しました。詳細をコンソールで確認してください。');
+                                });
+                        }
+                    });
+
+                    // カスタムトークンがある場合はそれを使用
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken)
+                            .then(() => console.log('カスタムトークンで認証成功'))
+                            .catch((error) => {
+                                console.error('カスタムトークン認証失敗:', error);
+                                showMessageBox('カスタムトークン認証に失敗しました。詳細をコンソールで確認してください。');
+                            });
+                    } else {
+                        // カスタムトークンがない場合は匿名認証を試行（onAuthStateChangedで処理）
+                        await signInAnonymously(auth)
+                            .then(() => console.log('匿名認証成功'))
+                            .catch((error) => {
+                                console.error('初期匿名認証失敗:', error);
+                                showMessageBox('初期匿名認証に失敗しました。詳細をコンソールで確認してください。');
+                            });
+                    }
+                }
+            } catch (error) {
+                console.error("Firebaseの初期化または認証中にエラーが発生しました:", error);
+                showMessageBox('Firebaseの初期化に失敗しました。詳細をコンソールで確認してください。');
+            }
+        };
+
+        // Firestoreにメッセージを追加する関数
+        const addMessage = async () => {
+            const messageText = document.getElementById('messageText').value;
+            if (messageText.trim() === "") {
+                showMessageBox("メッセージを入力してください。");
+                return;
+            }
+
+            // Firestoreへの操作は認証後に実行
+            if (!auth.currentUser) {
+                showMessageBox("認証が完了していません。しばらくお待ちください...");
+                return;
+            }
+
+            try {
+                // publicデータコレクションパスの構築
+                const messagesCollectionPath = `artifacts/${appId}/public/data/messages`;
+                await addDoc(collection(db, messagesCollectionPath), {
+                    text: messageText,
+                    timestamp: new Date(),
+                    userId: userId // メッセージを送信したユーザーID
+                });
+                document.getElementById('messageText').value = ''; // 入力フィールドをクリア
+                console.log("メッセージがFirestoreに追加されました！");
+                showMessageBox("メッセージが正常に追加されました。");
+            } catch (e) {
+                console.error("ドキュメントの追加中にエラーが発生しました: ", e);
+                showMessageBox("メッセージの追加中にエラーが発生しました。詳細をコンソールで確認してください。");
+            }
+        };
+
+        // Firestoreからメッセージをリアルタイムで読み込む関数
+        const loadMessages = () => {
+            const messagesList = document.getElementById('messagesList');
+            const loadingText = document.getElementById('loadingText');
+
+            // publicデータコレクションパスの構築
+            const messagesCollectionPath = `artifacts/${appId}/public/data/messages`;
+            const q = query(collection(db, messagesCollectionPath), orderBy('timestamp', 'desc'));
+
+            onSnapshot(q, (snapshot) => {
+                messagesList.innerHTML = ''; // リストをクリア
+                loadingText.style.display = 'none'; // ロード中のテキストを非表示に
+
+                if (snapshot.empty) {
+                    messagesList.innerHTML = '<p class="text-gray-500 text-center">まだメッセージはありません。</p>';
+                } else {
+                    snapshot.forEach((doc) => {
+                        const message = doc.data();
+                        const messageElement = document.createElement('div');
+                        messageElement.className = 'p-4 card mb-2 flex justify-between items-center';
+                        const date = message.timestamp ? new Date(message.timestamp.seconds * 1000).toLocaleString() : '日付不明';
+                        messageElement.innerHTML = `
+                            <div>
+                                <p class="text-gray-800 text-lg break-words">${message.text}</p>
+                                <p class="text-gray-500 text-sm mt-1">
+                                    <span class="font-medium">送信者:</span> ${message.userId} <span class="ml-2">(${date})</span>
+                                </p>
+                            </div>
+                        `;
+                        messagesList.appendChild(messageElement);
+                    });
+                }
+            }, (error) => {
+                console.error("メッセージの読み込み中にエラーが発生しました:", error);
+                showMessageBox("メッセージの読み込み中にエラーが発生しました。詳細をコンソールで確認してください。");
+                loadingText.textContent = 'メッセージの読み込みに失敗しました。';
+                loadingText.style.display = 'block';
+            });
+        };
+
+        // イベントリスナーの設定
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initFirebase(); // Firebaseの初期化と認証を待つ
+            // initFirebase内部のonAuthStateChangedでloadMessagesが呼ばれます
+        });
+
+        document.getElementById('addMessageBtn').addEventListener('click', addMessage);
+
+    </script>
+</body>
+</html>
