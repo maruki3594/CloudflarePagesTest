@@ -142,7 +142,7 @@
                                 })
                                 .catch((error) => {
                                     console.error('匿名ログイン失敗:', error);
-                                    showMessageBox('匿名ログインに失敗しました。詳細をコンソールで確認してください。');
+                                    showMessageBox(`匿名ログインに失敗しました。エラー: ${error.code || ''} ${error.message || ''} 詳細をコンソールで確認してください。`);
                                 });
                         }
                     });
@@ -152,7 +152,7 @@
                 }
             } catch (error) {
                 console.error("Firebaseの初期化または認証中にエラーが発生しました:", error);
-                showMessageBox('Firebaseの初期化に失敗しました。詳細をコンソールで確認してください。');
+                showMessageBox(`Firebaseの初期化に失敗しました。エラー: ${error.code || ''} ${error.message || ''} 詳細をコンソールで確認してください。`);
             }
         };
 
@@ -223,7 +223,7 @@
                 }
             }, (error) => {
                 console.error("メッセージの読み込み中にエラーが発生しました:", error);
-                showMessageBox("メッセージの読み込み中にエラーが発生しました。詳細をコンソールで確認してください。");
+                showMessageBox(`メッセージの読み込み中にエラーが発生しました。エラー: ${error.code || ''} ${error.message || ''} 詳細をコンソールで確認してください。`);
                 loadingText.textContent = 'メッセージの読み込みに失敗しました。';
                 loadingText.style.display = 'block';
             });
