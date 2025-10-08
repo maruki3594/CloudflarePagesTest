@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Pages テストデプロイメント</title>
+    <!-- Tailwind CSS CDNを読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* フォント設定と背景のグラデーション */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1f2937 0%, #0f172a 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+
+    <!-- メインコンテナ -->
+    <div class="max-w-xl w-full bg-white shadow-2xl rounded-xl p-8 sm:p-10 text-center transform hover:scale-[1.02] transition duration-300">
+        
+        <!-- ヘッダー -->
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-blue-600 mb-4 tracking-tight">
+            🎉 デプロイ成功！
+        </h1>
+        
+        <!-- メッセージボディ -->
+        <p class="text-lg sm:text-xl text-gray-700 mb-6">
+            このページは Cloudflare Pages によってホストされています。
+        </p>
+        
+        <p class="text-base sm:text-lg text-gray-500 mb-8 border-t pt-4 mt-4">
+            Geminiならではの、速くて安定したデプロイです！<br>
+            ここからプロジェクトを広げていきましょう。
+        </p>
+
+        <!-- タイムスタンプ表示（デプロイ確認用） -->
+        <div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-sm font-mono inline-block">
+            <span class="font-semibold">表示時刻 (JS実行):</span> 
+            <span id="currentTime"></span>
+        </div>
+
+    </div>
+
+    <script>
+        // 現在時刻を表示するスクリプト（デプロイが最新か確認するのに便利です）
+        document.addEventListener('DOMContentLoaded', () => {
+            const timeElement = document.getElementById('currentTime');
+            const now = new Date();
+            const options = {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            };
+            timeElement.textContent = now.toLocaleString('ja-JP', options);
+        });
+    </script>
+</body>
+</html>
